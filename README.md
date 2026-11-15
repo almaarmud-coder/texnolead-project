@@ -30,8 +30,8 @@ To let teammates on the same local network open the app, start it with `python3 
 - Provides a one-click, Dec 1–30, 2026 LZ A scenario, adjustable average system load and battery capacity, an idealized hourly battery simulation, and hours when Earth-center clearance meets the selected angle.
 - Downloads the current hourly calculation, assumptions, terrain summary, sources, and limitations as a JSON mission report.
 - Plots terrain-relative elevation and timeline bars for Sun visibility, Earth-disc visibility, and Earth-center clearance windows.
-- Includes a collapsible, phased post-hackathon roadmap; planned instruments and modules are clearly identified as future work.
-- Adds a visible navigation shortcut that opens the roadmap, plus a map-pin popup for Landing Zone A and its team-estimated PSR target.
+- Includes a collapsible, phased post-hackathon Future Map; planned instruments and modules are clearly identified as future work.
+- Adds a visible navigation shortcut that opens the Future Map, plus a map-pin popup for Landing Zone A and its team-estimated PSR target.
 - Displays the supplied thermal ranges and “High Stability” team assessment as estimates, separate from live Horizons/LOLA calculations.
 
 ## Data sources and resolution
