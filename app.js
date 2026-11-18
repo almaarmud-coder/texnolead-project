@@ -68,6 +68,15 @@ Object.assign(strings.en, {
   visibilityAlertTitle: "No direct view in this window", visibilityAlertSun: "The Sun disc did not clear the LOLA local skyline during this interval, so calculated panel energy is zero.", visibilityAlertEarth: "The Earth disc did not clear the LOLA local skyline during this interval.", psrAlertTitle: "This coordinate is in permanent shadow", psrAlertCopy: "LOLA marks this point as a PSR. Zero illumination is the result for this coordinate; choose a nearby sunlit staging point and calculate again for power and communications.", inputsChanged: "Inputs changed; recalculating with the current selection.",
 });
 
+Object.assign(strings.az, {
+  terrainUnavailableShort: "Əlçatan deyil",
+  psrUnavailableNote: "NASA LOLA relyef və PSR analizi alınmadı. Missiya hesablamasında sadə həndəsi üfüq istifadə olunur.",
+});
+Object.assign(strings.en, {
+  terrainUnavailableShort: "Unavailable",
+  psrUnavailableNote: "NASA LOLA terrain and PSR analysis could not be loaded. Mission calculations use a simple geometric horizon.",
+});
+
 const state = { language: "az", currentSite: "landingA", lastData: null, compareData: null, comparePoints: [], nextComparePoint: 1, missionRerunQueued: false, busy: false, compareBusy: false, searchBusy: false, scoutBusy: false, scoutData: null, scoutLayer: null, map: null, marker: null, psrLayer: null, psrTargetMarker: null, psrRouteLine: null, psrVisible: true, mapReady: false, dataStatus: "checking", siteAnalysis: null, analysisCache: new Map(), analysisRequests: new Map() };
 const $ = (selector, root = document) => {
   const element = root.querySelector(selector);
@@ -223,6 +232,18 @@ function updatePsrRoute(analysis) {
   state.psrTargetMarker = L.circleMarker([end.y, end.x], { radius: 7, color: "#d7f7ff", weight: 2, fillColor: "#39cfff", fillOpacity: 0.95 }).addTo(state.map).bindTooltip(t("psrTargetTooltip"));
 }
 
+function renderTerrainFailure(error, site) {
+  console.warn("NASA LOLA site analysis unavailable; using geometric-horizon fallback.", error);
+  if (site && siteKey(site) !== siteKey(getCurrentSite())) return;
+  $("#terrainStatus").textContent = t("terrainFallback");
+  $("#terrainModelBadge").textContent = t("terrainBadgeGeometric");
+  $("#nearestPsr").textContent = t("terrainUnavailableShort");
+  $("#psrNoteText").textContent = t("psrUnavailableNote");
+  state.siteAnalysis = null;
+  updatePsrRoute(null);
+  $("#psrRouteDistance").textContent = t("terrainUnavailableShort");
+}
+
 function renderSiteAnalysis(analysis) {
   if (!analysis) return;
   const site = analysis.site;
@@ -263,7 +284,10 @@ async function ensureSiteAnalysis(site = getCurrentSite()) {
     state.analysisCache.set(key, payload);
     if (key === siteKey(getCurrentSite())) renderSiteAnalysis(payload);
     return payload;
-  })().finally(() => state.analysisRequests.delete(key));
+  })().catch((error) => {
+    if (key === siteKey(getCurrentSite())) renderTerrainFailure(error, site);
+    throw error;
+  }).finally(() => state.analysisRequests.delete(key));
   state.analysisRequests.set(key, request);
   return request;
 }
@@ -350,7 +374,7 @@ function initializeMap() {
     resetTerrainFacts();
     refreshSite();
     setStatus($("#requestStatus"), t("customSite"));
-    ensureSiteAnalysis(getCurrentSite()).catch((error) => { $("#terrainStatus").textContent = `${t("terrainFallback")}: ${error.message}`; });
+    ensureSiteAnalysis(getCurrentSite()).catch(() => null);
   });
   setTimeout(() => state.map?.invalidateSize(), 100);
 }
@@ -906,11 +930,7 @@ async function runMission() {
     const [sun, earth, analysis] = await Promise.all([
       fetchEphemeris("10", site, start, stop),
       fetchEphemeris("399", site, start, stop),
-      ensureSiteAnalysis(site).catch((error) => {
-        $("#terrainStatus").textContent = `${t("terrainFallback")}: ${error.message}`;
-        $("#terrainModelBadge").textContent = t("terrainBadgeGeometric");
-        return null;
-      }),
+      ensureSiteAnalysis(site).catch(() => null),
     ]);
     if (!inputSignature || inputSignature !== missionInputSignature()) {
       state.missionRerunQueued = true;
@@ -1021,10 +1041,7 @@ async function findBestWindow() {
     const [sun, earth, analysis] = await Promise.all([
       fetchEphemeris("10", site, start, stop, "6 h"),
       fetchEphemeris("399", site, start, stop, "6 h"),
-      ensureSiteAnalysis(site).catch((error) => {
-        $("#terrainStatus").textContent = `${t("terrainFallback")}: ${error.message}`;
-        return null;
-      }),
+      ensureSiteAnalysis(site).catch(() => null),
     ]);
     const samplesPerDay = 4;
     const pointsPerWindow = duration * samplesPerDay;
@@ -1064,7 +1081,7 @@ function initialize() {
     state.currentSite = event.target.value; state.lastData = null; clearMissionData(); clearScoutGrid(); resetTerrainFacts(); refreshSite();
     $("#requestStatus").textContent = "";
     if (state.busy) state.missionRerunQueued = true;
-    ensureSiteAnalysis(getCurrentSite()).catch((error) => { $("#terrainStatus").textContent = `${t("terrainFallback")}: ${error.message}`; });
+    ensureSiteAnalysis(getCurrentSite()).catch(() => null);
   });
   $("#duration").addEventListener("input", (event) => { $("#durationValue").textContent = event.target.value; state.lastData = null; clearMissionData(); $("#requestStatus").textContent = ""; if (state.busy) state.missionRerunQueued = true; });
   $("#startDate").addEventListener("change", () => { state.lastData = null; clearMissionData(); $("#requestStatus").textContent = ""; if (state.busy) state.missionRerunQueued = true; });
