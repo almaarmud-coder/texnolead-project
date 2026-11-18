@@ -16,10 +16,12 @@ try:
     import numpy as np
     import rasterio
     from rasterio.windows import Window
-except ImportError:  # The NASA/JPL ephemeris view still works without the optional terrain stack.
+    _RASTER_IMPORT_ERROR = None
+except ImportError as error:  # The NASA/JPL ephemeris view still works without the optional terrain stack.
     np = None
     rasterio = None
     Window = None
+    _RASTER_IMPORT_ERROR = error
 
 
 ROOT = Path(__file__).resolve().parent
@@ -45,10 +47,15 @@ def _raster_url(product):
     return urls[product]
 
 
+def _require_raster_stack(purpose):
+    if rasterio is None or np is None:
+        detail = f" Import error: {_RASTER_IMPORT_ERROR}" if _RASTER_IMPORT_ERROR else ""
+        raise RuntimeError(f"{purpose} requires NumPy and Rasterio, but they could not be loaded in this deployment.{detail}")
+
+
 @lru_cache(maxsize=7)
 def _open_lola_raster(product):
-    if rasterio is None:
-        raise RuntimeError("NASA LOLA analysis needs rasterio and numpy. Install requirements.txt and restart server.py.")
+    _require_raster_stack("NASA LOLA analysis")
     with rasterio.Env(
         GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR",
         CPL_VSIL_CURL_ALLOWED_EXTENSIONS=".TIF,.tif,.lbl,.LBL,.img,.IMG",
@@ -181,8 +188,7 @@ def _terrain_horizon(dem_product, x, y, lon, observer_elevation_m):
 
 
 def lunar_site_analysis(lat, lon):
-    if rasterio is None or np is None:
-        raise RuntimeError("NASA LOLA terrain analysis needs rasterio and numpy. Install requirements.txt and restart server.py.")
+    _require_raster_stack("NASA LOLA terrain analysis")
     if not -90 <= lat <= -75:
         raise ValueError("NASA south-polar raster coverage is 75°S–90°S.")
 
@@ -253,8 +259,7 @@ def lunar_site_analysis(lat, lon):
 
 def lunar_site_scout(lat, lon, radius_km=8.0, spacing_km=1.0):
     """Return a regional LOLA pre-screen grid; cells are not landing-safety ratings."""
-    if rasterio is None or np is None:
-        raise RuntimeError("NASA LOLA scouting needs rasterio and numpy. Install requirements.txt and restart server.py.")
+    _require_raster_stack("NASA LOLA scouting")
     if not -90 <= lat <= -75:
         raise ValueError("NASA south-polar raster coverage is 75°S–90°S.")
     if not 2 <= radius_km <= 12 or not 0.5 <= spacing_km <= 3:
