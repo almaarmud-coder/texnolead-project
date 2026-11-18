@@ -1,7 +1,33 @@
 """Serve TexnoLead and relay its NASA/JPL Horizons requests."""
 
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+import ctypes
 from pathlib import Path
+import sys
+
+
+ROOT = Path(__file__).resolve().parent
+
+
+def _load_expat_runtime():
+    """Load Expat before GDAL; Vercel's Python image may omit system libexpat."""
+    if not sys.platform.startswith("linux"):
+        return None
+    try:
+        return ctypes.CDLL("libexpat.so.1", mode=ctypes.RTLD_GLOBAL)
+    except OSError:
+        bundled = ROOT / "vendor" / "linux-x86_64" / "libexpat.so.1"
+        if not bundled.is_file():
+            raise
+        return ctypes.CDLL(str(bundled), mode=ctypes.RTLD_GLOBAL)
+
+
+try:
+    _EXPAT_RUNTIME = _load_expat_runtime()
+except OSError:
+    _EXPAT_RUNTIME = None
+
+
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
@@ -17,14 +43,13 @@ try:
     import rasterio
     from rasterio.windows import Window
     _RASTER_IMPORT_ERROR = None
-except ImportError as error:  # The NASA/JPL ephemeris view still works without the optional terrain stack.
+except (ImportError, OSError) as error:  # The NASA/JPL ephemeris view still works without the optional terrain stack.
     np = None
     rasterio = None
     Window = None
     _RASTER_IMPORT_ERROR = error
 
 
-ROOT = Path(__file__).resolve().parent
 HORIZONS_ENDPOINT = "https://ssd.jpl.nasa.gov/api/horizons.api"
 LUNAR_RADIUS_M = 1_737_400.0
 PDS_ROOT = "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx"

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/lola/*.py": {
+      "includeFiles": "vendor/linux-x86_64/libexpat.so.1",
+      "maxDuration": 300
+    },
+    "api/horizons.py": {
+      "maxDuration": 300
+    }
+  }
+}
